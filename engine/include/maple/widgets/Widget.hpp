@@ -5,6 +5,12 @@
 #pragma once
 
 #include <limits>
+#include <map>
+#include <typeindex>
+#include <functional>
+#include "maple/events/Event.hpp"
+#include "maple/events/MouseEvent.hpp"
+
 
 namespace maple::widgets {
 
@@ -15,17 +21,25 @@ namespace maple::widgets {
 
 		virtual ~Widget() noexcept;
 
-		[[nodiscard]] bool isVisible() const;
+		[[nodiscard]] Window *window();
 
-		virtual void setVisible(bool visible);
+		[[nodiscard]] int width() const;
+
+		[[nodiscard]] int height() const;
+
+		[[nodiscard]] bool visible() const;
+
+		virtual void visible(bool visible);
 
 		inline void show() {
-			setVisible(true);
+			visible(true);
 		}
 
 		inline void hide() {
-			setVisible(false);
+			visible(false);
 		}
+
+		virtual void onMouseEvent(const std::shared_ptr<events::MouseEvent> &event);
 
 	protected:
 
@@ -39,8 +53,8 @@ namespace maple::widgets {
 		int m_height = 24;
 		int m_minWidth = -1;
 		int m_minHeight = -1;
-		int m_maxWidth = std::numeric_limits<int>::max();
-		int m_maxHeight = std::numeric_limits<int>::max();
+		int m_maxWidth = (std::numeric_limits<int>::max)();
+		int m_maxHeight = (std::numeric_limits<int>::max)();
 		bool m_visible = true;
 		int m_tabIndex = 0;
 

@@ -7,7 +7,10 @@
 
 #include <string_view>
 #include <thread>
-#include "windows.h"
+#include <deque>
+#include <functional>
+#include <windows.h>
+#include "maple/widgets/Widget.hpp"
 
 namespace maple::widgets {
 
@@ -21,37 +24,30 @@ namespace maple::widgets {
 	inline constexpr uint32_t WINDOW_STYLE_DEFAULT = (WINDOW_STYLE_TITLE_BAR | WINDOW_STYLE_RESIZABLE | WINDOW_STYLE_MAXIMIZE_BOX | WINDOW_STYLE_MINIMIZE_BOX);
 
 
-	class Window {
+	class Window : public Widget {
 	public:
 
-		Window(const std::string_view &title, uint32_t style = WINDOW_STYLE_DEFAULT);
+		explicit Window(const std::string_view &title, uint32_t style = WINDOW_STYLE_DEFAULT);
 
-//		Window(const std::wstring_view &title, uint32_t style);
+		explicit Window(const std::wstring_view &title, uint32_t style = WINDOW_STYLE_DEFAULT);
 
-		~Window();
+		~Window() override;
 
 		[[nodiscard]] HWND getWinHandle() const;
 
-		void setVisible(bool visible);
-
-		inline void show() {
-			setVisible(true);
-		}
-
-		inline void hide() {
-			setVisible(false);
-		}
+		void visible(bool visible) override;
 
 		void close() const;
 
+		[[nodiscard]] events::Event::Worker *eventWorker() const;
+
+		void onMouseEvent(const std::shared_ptr<events::MouseEvent> &event) override;
+
 	protected:
 
-		std::thread m_eventThread;
+		events::Event::Worker *m_eventWorker;
 		HWND m_handle;
 		bool m_isPopup = false;
-		int m_width;
-		int m_height;
-		bool m_visible = false;
 
 	};
 

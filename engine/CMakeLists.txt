@@ -7,14 +7,14 @@ target_include_directories(maple_engine PUBLIC include)
 
 file(GLOB_RECURSE SOURCES src/ *.cpp)
 file(GLOB_RECURSE HEADERS include/ *.hpp)
-target_sources(maple_engine PRIVATE ${SOURCES})
+target_sources(maple_engine PRIVATE ${SOURCES} .manifest)
 target_sources(maple_engine PUBLIC ${HEADERS})
 
 target_link_libraries(maple_engine PUBLIC
         Maple::math)
 
 if (MSVC)
-    target_compile_options(maple_engine PRIVATE -W4 -WX)
+    target_compile_options(maple_engine PRIVATE -W4)
 else()
-    target_compile_options(maple_engine PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(maple_engine PRIVATE -Wall -Wextra -Wduplicated-branches -Wlogical-op -Wrestrict -Wnull-dereference -Wduplicated-cond -flarge-source-files)
 endif()

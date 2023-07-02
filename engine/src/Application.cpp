@@ -34,6 +34,36 @@ LRESULT maple::Application::handleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, L
 				INSTANCE->stop();
 			} break;
 
+			case WM_LBUTTONDOWN:
+			case WM_RBUTTONDOWN:
+			case WM_MBUTTONDOWN:
+			case WM_XBUTTONDOWN: {
+				int x = (int) (short) LOWORD(lParam);
+				int y = (int) (short) HIWORD(lParam);
+				int mouseButton;
+
+				switch(uMsg){
+					case WM_RBUTTONDOWN:
+						mouseButton = 1;
+						break;
+					case WM_MBUTTONDOWN:
+						mouseButton = 2;
+						break;
+					case WM_XBUTTONDOWN:
+						if (GET_XBUTTON_WPARAM(wParam) == XBUTTON1)
+							mouseButton = 3;
+						else
+							mouseButton = 4;
+						break;
+					default:
+						mouseButton = 0;
+						break;
+				}
+
+				auto event = std::make_shared<events::MouseEvent>(x, y, mouseButton, 0, false);
+				event->emit(pWindow);
+			} break;
+
 			default:
 				break;
 		}
@@ -41,8 +71,6 @@ LRESULT maple::Application::handleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, L
 
 	return DefWindowProcW(hWnd, uMsg, wParam, lParam);
 }
-
-typedef BOOL(WINAPI *SET_PROCESS_DPI_AWARENESS_CONTEXT)(DPI_AWARENESS_CONTEXT);
 
 maple::Application::Application([[maybe_unused]] const int argc, [[maybe_unused]] const char **argv) {
 	if (INSTANCE != nullptr)
@@ -55,12 +83,6 @@ maple::Application::Application([[maybe_unused]] const int argc, [[maybe_unused]
 	m_windowClass.style = CS_DBLCLKS;
 
 	RegisterClassW(&m_windowClass);
-
-	auto SetProcessDpiAwarenessContext = (SET_PROCESS_DPI_AWARENESS_CONTEXT) GetProcAddress(GetModuleHandle(TEXT("user32.dll")), "SetProcessDpiAwarenessContext");
-
-	if (SetProcessDpiAwarenessContext != nullptr) {
-		SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-	}
 
 	INSTANCE = this;
 }
