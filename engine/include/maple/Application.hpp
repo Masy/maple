@@ -5,7 +5,7 @@
 #pragma once
 
 #include <map>
-#include "windows.h"
+#include <windows.h>
 
 #include "maple/widgets/Window.hpp"
 
@@ -18,6 +18,7 @@ namespace maple {
 
 		static Application *getInstance();
 
+		[[nodiscard]] static uint32_t getModifierBitMask();
 
 	private:
 
@@ -31,12 +32,18 @@ namespace maple {
 
 		void stop();
 
-		HINSTANCE getWinInstance() const;
+		[[nodiscard]] HINSTANCE getWinInstance() const;
+
+		[[nodiscard]] uint32_t getEventMessageId() const;
+
+		[[nodiscard]] uint64_t getThreadId() const;
 
 	private:
 
 		inline static Application *INSTANCE = nullptr;
 		WNDCLASSW m_windowClass{};
+		uint32_t m_eventMsgId = 0;
+		uint64_t m_threadId = 0;
 		std::map<HWND, widgets::Window*> m_windows;
 
 	};

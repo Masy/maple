@@ -13,6 +13,11 @@ target_sources(maple_engine PUBLIC ${HEADERS})
 target_link_libraries(maple_engine PUBLIC
         Maple::math)
 
+if (WIN32)
+    # We need features of the windows api that were added with windows 10
+    target_compile_definitions(maple_engine PRIVATE WINVER=0x0A00)
+endif()
+
 if (MSVC)
     target_compile_options(maple_engine PRIVATE -W4)
 else()

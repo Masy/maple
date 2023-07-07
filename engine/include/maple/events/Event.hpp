@@ -10,6 +10,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <queue>
+#include <windows.h>
 
 namespace maple::widgets {
 	class Widget;
@@ -91,31 +92,12 @@ namespace maple::events {
 	template <typename T>
 	using extractSecondArgument_t = typename extractSecondArgument<T>::type;
 
+
 	class Event : public std::enable_shared_from_this<Event> {
 	public:
 
-		class Worker {
-		public:
+		typedef std::multimap<std::type_index, std::function<void(widgets::Widget *, const std::shared_ptr<events::Event> &)>> handlerMultiMap_t;
 
-			Worker();
-
-			~Worker() noexcept;
-
-			void push_back(const std::function<void()> &wrapper);
-
-			[[nodiscard]] std::thread::id threadId();
-
-		private:
-
-			std::thread m_thread;
-			std::mutex m_mutex;
-			std::condition_variable m_cv{};
-			std::queue<std::function<void()>> m_eventQueue{};
-			bool m_working = true;
-
-		};
-
-	public:
 
 		virtual ~Event() = default;
 
@@ -127,37 +109,43 @@ namespace maple::events {
 
 		void cancelled(bool cancelled);
 
-	private:
+	public:
 
-		static std::unordered_map<widgets::Widget*, std::multimap<std::type_index, std::function<void(widgets::Widget *, const std::shared_ptr<events::Event> &)>>> eventHandlers;
+		static std::unordered_map<widgets::Widget*, handlerMultiMap_t> eventHandlers;
 
 	private:
 
 		bool m_cancelled = false;
-
-		template<typename F>
-		friend void connect(widgets::Widget *, F);
-
-		template<typename EventType>
-		friend void connect(widgets::Widget *, void (maple::widgets::Widget::*func)(const std::shared_ptr<EventType> &));
-
-		friend void disconnect(widgets::Widget *widget);
 	};
 
-	template <typename F>
-	void connect(widgets::Widget *widget, F eventHandler) {
+	struct WinEvent {
+		std::shared_ptr<Event> event;
+		maple::widgets::Widget *widget = nullptr;
+		std::pair<Event::handlerMultiMap_t::iterator, Event::handlerMultiMap_t::iterator> handlers;
+		std::condition_variable *cv = nullptr;
+		bool *finished = nullptr;
+	};
+
+	template<typename Widget_t, typename F>
+	void connect(Widget_t *widget, F func) {
+		static_assert(std::derived_from<Widget_t, maple::widgets::Widget>, "Widget_t must be derived from the widget class");
+		static_assert(std::derived_from<extractSecondArgument_t<F>, maple::events::Event>, "Event type of handler must be derived from the event class");
+
 		auto wrapper = [=] (widgets::Widget *widget, const std::shared_ptr<events::Event> &event) {
-			eventHandler(widget, std::reinterpret_pointer_cast<extractSecondArgument_t<F>>(event));
+			func(reinterpret_cast<Widget_t*>(widget), std::reinterpret_pointer_cast<extractSecondArgument_t<F>>(event));
 		};
-		Event::eventHandlers[widget].insert({std::type_index(typeid(extractSecondArgument_t<F>)), wrapper});
+		Event::eventHandlers[(widgets::Widget*) widget].insert({std::type_index(typeid(extractSecondArgument_t<F>)), wrapper});
 	}
 
-	template<typename EventType>
-	void connect(widgets::Widget *widget, void (maple::widgets::Widget::*func)(const std::shared_ptr<EventType> &)) {
+	template<typename Widget_t, typename Event_t>
+	void connect(Widget_t *widget, void (Widget_t::*func)(const std::shared_ptr<Event_t> &)) {
+		static_assert(std::derived_from<Widget_t, maple::widgets::Widget>, "Widget_t must be derived from the widget class");
+		static_assert(std::derived_from<Event_t, maple::events::Event>, "Event_t must be derived from the event class");
+
 		auto wrapper = [=] (widgets::Widget *widget, const std::shared_ptr<events::Event> &event) {
-			(widget->*func)(std::reinterpret_pointer_cast<EventType>(event));
+			(reinterpret_cast<Widget_t*>(widget)->*func)(std::reinterpret_pointer_cast<Event_t>(event));
 		};
-		Event::eventHandlers[widget].insert({std::type_index(typeid(EventType)), wrapper});
+		Event::eventHandlers[(widgets::Widget*) widget].insert({std::type_index(typeid(Event_t)), wrapper});
 	}
 
 	void disconnect(widgets::Widget *widget);

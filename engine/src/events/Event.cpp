@@ -6,63 +6,26 @@
 #include "maple/events/Event.hpp"
 #include "maple/widgets/Widget.hpp"
 #include "maple/widgets/Window.hpp"
+#include "maple/Application.hpp"
 
 using namespace maple::events;
 
 std::unordered_map<maple::widgets::Widget*, std::multimap<std::type_index, std::function<void(maple::widgets::Widget *, const std::shared_ptr<maple::events::Event> &)>>> Event::eventHandlers{};
 
-Event::Worker::Worker() {
-	m_thread = std::thread([this] () {
-		while (m_working) {
-			std::unique_lock lock(m_mutex);
-			if (m_eventQueue.empty()) {
-				m_cv.wait(lock);
-			}
-
-			if (!m_eventQueue.empty()) {
-				auto f_wrapper = m_eventQueue.front();
-				m_eventQueue.pop();
-				lock.unlock();
-				f_wrapper();
-			}
-		}
-	});
-}
-
-Event::Worker::~Worker() noexcept {
-	m_working = false;
-	m_cv.notify_one();
-
-	if (m_thread.joinable()) {
-		m_thread.join();
-	}
-}
-
-void Event::Worker::push_back(const std::function<void()> &wrapper) {
-	std::unique_lock lock(m_mutex);
-
-	m_eventQueue.push(wrapper);
-
-	lock.unlock();
-	m_cv.notify_one();
-}
-
-std::thread::id Event::Worker::threadId() {
-	return m_thread.get_id();
-}
-
 void Event::emit(widgets::Widget *widget) {
 	if (widget == nullptr)
 		throw std::invalid_argument("Failed to emit event: Widget can't be a nullptr!");
 
-	auto *window = widget->window();
-	if (window == nullptr)
-		throw std::runtime_error("Failed to emit event: Widget is not attached to a window!");
+	auto *app = maple::Application::getInstance();
 
-	auto *worker = window->eventWorker();
+	if (GetCurrentThreadId() == app->getThreadId()) {
+		std::pair<handlerMultiMap_t::iterator, handlerMultiMap_t::iterator> range;
+		try {
+			range = eventHandlers.at(widget).equal_range(std::type_index(typeid(*this)));;
+		} catch (const std::exception &) {
+			return;
+		}
 
-	if (std::this_thread::get_id() == worker->threadId()) {
-		auto range = eventHandlers.at(window).equal_range(std::type_index(typeid(*this)));
 		for (auto &handler = range.first; handler != range.second; handler++) {
 			if (this->cancelled())
 				break;
@@ -70,23 +33,23 @@ void Event::emit(widgets::Widget *widget) {
 			handler->second(widget, shared_from_this());
 		}
 	} else {
-		bool finished = false;
-		std::condition_variable cv;
 		std::mutex mutex;
-		worker->push_back([&, this] () {
-			std::unique_lock lock(mutex);
-			auto range = eventHandlers.at(window).equal_range(std::type_index(typeid(*this)));
-			for (auto &handler = range.first; handler != range.second; handler++) {
-				if (this->cancelled())
-					break;
+		std::condition_variable cv;
+		bool finished = false;
 
-				handler->second(widget, shared_from_this());
-			}
+		auto *winEvent = new maple::events::WinEvent();
+		winEvent->event = shared_from_this();
+		winEvent->widget = widget;
+		winEvent->cv = &cv;
+		winEvent->finished = &finished;
 
-			finished = true;
-			lock.unlock();
-			cv.notify_one();
-		});
+		try {
+			winEvent->handlers = eventHandlers.at(widget).equal_range(std::type_index(typeid(*this)));
+		} catch (const std::exception &ex) {
+			return;
+		}
+
+		PostThreadMessageW(app->getThreadId(), app->getEventMessageId(), 0, (LPARAM) winEvent);
 
 		while (!finished) {
 			std::unique_lock lock(mutex);
@@ -99,19 +62,18 @@ void Event::emitAsync(widgets::Widget *widget) {
 	if (widget == nullptr)
 		throw std::invalid_argument("Failed to asynchronously emit event: Widget can't be a nullptr!");
 
-	auto *window = widget->window();
-	if (window == nullptr)
-		throw std::runtime_error("Failed to asynchronously emit event: Widget is not attached to a window!");
+	auto *winEvent = new maple::events::WinEvent();
+	winEvent->event = shared_from_this();
+	winEvent->widget = widget;
 
-	window->eventWorker()->push_back([=, this] () {
-		auto range = eventHandlers.at(window).equal_range(std::type_index(typeid(*this)));
-		for (auto &handler = range.first; handler != range.second; handler++) {
-			if (this->cancelled())
-				break;
+	try {
+		winEvent->handlers = eventHandlers.at(widget).equal_range(std::type_index(typeid(*this)));
+	} catch (const std::exception &ex) {
+		return;
+	}
 
-			handler->second(widget, shared_from_this());
-		}
-	});
+	auto *app = maple::Application::getInstance();
+	PostThreadMessageW(app->getThreadId(), app->getEventMessageId(), 0, (LPARAM) winEvent);
 }
 
 bool Event::cancelled() const {

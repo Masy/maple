@@ -19,13 +19,25 @@ namespace maple::widgets {
 	class Widget {
 	public:
 
+		static Widget *HOVERED_WIDGET;
+
+	public:
+
 		virtual ~Widget() noexcept;
 
 		[[nodiscard]] Window *window();
 
+		[[nodiscard]] int x() const;
+
+		[[nodiscard]] int y() const;
+
+		void position(int posX, int posY);
+
 		[[nodiscard]] int width() const;
 
 		[[nodiscard]] int height() const;
+
+		void resize(int width, int height);
 
 		[[nodiscard]] bool visible() const;
 
@@ -39,6 +51,14 @@ namespace maple::widgets {
 			visible(false);
 		}
 
+		[[nodiscard]] bool focused() const;
+
+		virtual void focused(bool focused);
+
+		[[nodiscard]] INTERACT_STATE interactState() const;
+
+		void interactState(INTERACT_STATE newState);
+
 		virtual void onMouseEvent(const std::shared_ptr<events::MouseEvent> &event);
 
 	protected:
@@ -49,6 +69,8 @@ namespace maple::widgets {
 
 		Window *m_window = nullptr;
 		Widget *m_parent = nullptr;
+		int m_posX = 0;
+		int m_posY = 0;
 		int m_width = 80;
 		int m_height = 24;
 		int m_minWidth = -1;
@@ -57,6 +79,8 @@ namespace maple::widgets {
 		int m_maxHeight = (std::numeric_limits<int>::max)();
 		bool m_visible = true;
 		int m_tabIndex = 0;
+		bool m_focused = false;
+		INTERACT_STATE m_interactState = MAPLE_INTERACT_DEFAULT;
 
 	};
 

@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include "maple/widgets/Window.hpp"
 #include "maple/Application.hpp"
+#include "maple/events/WindowStateEvent.hpp"
 
 maple::widgets::Window::Window(const std::string_view &title, uint32_t style) : maple::widgets::Widget() {
 	m_window = this;
@@ -48,10 +49,10 @@ maple::widgets::Window::Window(const std::string_view &title, uint32_t style) : 
 	if (AdjustWindowRectEx(&clientArea, dwStyle, false, 0) == 0)
 		throw std::runtime_error("Failed to calculate size of content area!");
 
-//	m_windowSizeLimits.ptMinTrackSize.x = m_minWidth + (clientArea.right - clientArea.left - 854);
-//	m_windowSizeLimits.ptMinTrackSize.y = m_minHeight + (clientArea.bottom - clientArea.top - 480);
-//	m_windowSizeLimits.ptMaxTrackSize.x = m_maxWidth;
-//	m_windowSizeLimits.ptMaxTrackSize.y = m_maxHeight;
+	m_minMaxInfo.ptMinTrackSize.x = m_minWidth + (clientArea.right - clientArea.left - 854);
+	m_minMaxInfo.ptMinTrackSize.y = m_minHeight + (clientArea.bottom - clientArea.top - 480);
+	m_minMaxInfo.ptMaxTrackSize.x = m_maxWidth;
+	m_minMaxInfo.ptMaxTrackSize.y = m_maxHeight;
 
 	int wideStrLen = MultiByteToWideChar(CP_UTF8, 0, title.data(), -1, nullptr, 0);
 	std::wstring wTitle(wideStrLen, L'\0');
@@ -75,7 +76,9 @@ maple::widgets::Window::Window(const std::string_view &title, uint32_t style) : 
 	SetWindowLongW(m_handle, GWL_STYLE, dwStyle);
 	SetWindowLongW(m_handle, GWL_EXSTYLE, exStyle);
 
-	m_eventWorker = new events::Event::Worker();
+	m_contentScale = (float) GetDpiForWindow(m_handle) / USER_DEFAULT_SCREEN_DPI;
+
+	maple::events::connect(this, &Window::onContentScaleChange);
 }
 
 maple::widgets::Window::Window(const std::wstring_view &title, uint32_t style) {
@@ -119,10 +122,10 @@ maple::widgets::Window::Window(const std::wstring_view &title, uint32_t style) {
 	if (AdjustWindowRectEx(&clientArea, dwStyle, false, 0) == 0)
 		throw std::runtime_error("Failed to calculate size of content area!");
 
-//	m_windowSizeLimits.ptMinTrackSize.x = m_minWidth + (clientArea.right - clientArea.left - 854);
-//	m_windowSizeLimits.ptMinTrackSize.y = m_minHeight + (clientArea.bottom - clientArea.top - 480);
-//	m_windowSizeLimits.ptMaxTrackSize.x = m_maxWidth;
-//	m_windowSizeLimits.ptMaxTrackSize.y = m_maxHeight;
+	m_minMaxInfo.ptMinTrackSize.x = m_minWidth + (clientArea.right - clientArea.left - 854);
+	m_minMaxInfo.ptMinTrackSize.y = m_minHeight + (clientArea.bottom - clientArea.top - 480);
+	m_minMaxInfo.ptMaxTrackSize.x = m_maxWidth;
+	m_minMaxInfo.ptMaxTrackSize.y = m_maxHeight;
 
 	m_handle = CreateWindowExW(
 			0,
@@ -142,16 +145,19 @@ maple::widgets::Window::Window(const std::wstring_view &title, uint32_t style) {
 	SetWindowLongW(m_handle, GWL_STYLE, dwStyle);
 	SetWindowLongW(m_handle, GWL_EXSTYLE, exStyle);
 
-	m_eventWorker = new events::Event::Worker();
+	m_contentScale = (float) GetDpiForWindow(m_handle) / USER_DEFAULT_SCREEN_DPI;
+
+	maple::events::connect(this, &Window::onContentScaleChange);
 }
 
-maple::widgets::Window::~Window() {
-	delete m_eventWorker;
-	DestroyWindow(m_handle);
-}
+maple::widgets::Window::~Window() = default;
 
-HWND maple::widgets::Window::getWinHandle() const {
+HWND maple::widgets::Window::winHandle() const {
 	return m_handle;
+}
+
+bool maple::widgets::Window::isPopup() const {
+	return m_isPopup;
 }
 
 void maple::widgets::Window::visible(const bool visible) {
@@ -177,10 +183,34 @@ void maple::widgets::Window::close() const {
 	PostMessageW(m_handle, WM_CLOSE, 0, 0);
 }
 
-maple::events::Event::Worker *maple::widgets::Window::eventWorker() const {
-	return m_eventWorker;
+float maple::widgets::Window::contentScale() const {
+	return m_contentScale;
+}
+
+MINMAXINFO maple::widgets::Window::minMaxInfo() const {
+	return m_minMaxInfo;
+}
+
+WINDOW_STATE maple::widgets::Window::state() const {
+	return m_state;
+}
+
+void maple::widgets::Window::state(const WINDOW_STATE newState) {
+	if (m_state == newState)
+		return;
+
+	WINDOW_STATE prevState = m_state;
+	m_state = newState;
+
+	auto event = std::make_shared<events::WindowStateEvent>(prevState, newState);
+	event->emit(this);
+}
+
+void maple::widgets::Window::onContentScaleChange(const std::shared_ptr<events::ContentScaleEvent> &event) {
+	m_contentScale = event->newScale();
+	printf("[Window] content scale changed from %f to %f\n", event->prevScale(), event->newScale());
 }
 
 void maple::widgets::Window::onMouseEvent(const std::shared_ptr<events::MouseEvent> &event) {
-	printf("[Window] mouse button %d clicked at %d, %d\n", event->mouseButton(), event->x(), event->y());
+	printf("[Window] mouse button %d clicked at %d, %d\n", event->mouseButton(), event->cursorX(), event->cursorY());
 }

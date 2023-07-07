@@ -11,6 +11,7 @@
 #include <functional>
 #include <windows.h>
 #include "maple/widgets/Widget.hpp"
+#include "maple/events/ContentScaleEvent.hpp"
 
 namespace maple::widgets {
 
@@ -33,21 +34,33 @@ namespace maple::widgets {
 
 		~Window() override;
 
-		[[nodiscard]] HWND getWinHandle() const;
+		[[nodiscard]] HWND winHandle() const;
+
+		[[nodiscard]] bool isPopup() const;
 
 		void visible(bool visible) override;
 
 		void close() const;
 
-		[[nodiscard]] events::Event::Worker *eventWorker() const;
+		[[nodiscard]] float contentScale() const;
+
+		[[nodiscard]] MINMAXINFO minMaxInfo() const;
+
+		[[nodiscard]] WINDOW_STATE state() const;
+
+		void state(WINDOW_STATE newState);
 
 		void onMouseEvent(const std::shared_ptr<events::MouseEvent> &event) override;
 
+		void onContentScaleChange(const std::shared_ptr<events::ContentScaleEvent> &event);
+
 	protected:
 
-		events::Event::Worker *m_eventWorker;
 		HWND m_handle;
 		bool m_isPopup = false;
+		float m_contentScale = 1.0f;
+		MINMAXINFO m_minMaxInfo;
+		WINDOW_STATE m_state = MAPLE_WINDOW_WINDOWED;
 
 	};
 
